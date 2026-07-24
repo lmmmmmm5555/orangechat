@@ -26,6 +26,10 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm
 
+      - name: Install Node Dependencies
+        working-directory: ./web-ui
+        run: pnpm install
+
       - name: Gradle cache
         uses: actions/cache@v4
         with:
