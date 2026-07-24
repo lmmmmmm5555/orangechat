@@ -30,6 +30,10 @@ jobs:
         working-directory: ./web-ui
         run: pnpm install
 
+      - name: Build WebUI
+        working-directory: ./web-ui
+        run: pnpm run build
+
       - name: Gradle cache
         uses: actions/cache@v4
         with:
