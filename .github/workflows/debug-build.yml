@@ -33,7 +33,11 @@ jobs:
 
       - name: Install Node Dependencies
         working-directory: ./web-ui
-        run: pnpm install
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Build WebUI
+        working-directory: ./web-ui
+        run: pnpm run build
 
       - name: Gradle cache
         uses: actions/cache@v4
