@@ -12,6 +12,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Fetch material3 submodule
+        run: |
+          rm -rf material3/material-color-utilities
+          git clone --depth 1 https://github.com/material-foundation/material-color-utilities.git material3/material-color-utilities
+
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
@@ -29,10 +34,6 @@ jobs:
       - name: Install Node Dependencies
         working-directory: ./web-ui
         run: pnpm install
-
-      - name: Build WebUI
-        working-directory: ./web-ui
-        run: pnpm run build
 
       - name: Gradle cache
         uses: actions/cache@v4
