@@ -1,4 +1,4 @@
-﻿/*
+/*
  * 橘瓣 OrangeChat
  * 衍生自 RikkaHub (https://github.com/rikkahub/rikkahub)，原作者 RE
  * 本项目基于 GNU AGPL v3 开源，详见根目录 LICENSE 文件
@@ -111,99 +111,15 @@ internal fun applyInjections(
 ): List<UIMessage> {
     val result = messages.toMutableList()
 
-    // 找到系统消息的索引（通常是第一条）
-    val systemIndex = result.indexOfFirst { it.role == MessageRole.SYSTEM }
-
-    // 处理 BEFORE_SYSTEM_PROMPT 和 AFTER_SYSTEM_PROMPT
-    if (systemIndex >= 0) {
-        val beforeContent = byPosition[InjectionPosition.BEFORE_SYSTEM_PROMPT]
-            ?.joinToString("\n") { it.content } ?: ""
-        val afterContent = byPosition[InjectionPosition.AFTER_SYSTEM_PROMPT]
-            ?.joinToString("\n") { it.content } ?: ""
-
-        if (beforeContent.isNotEmpty() || afterContent.isNotEmpty()) {
-            val systemMessage = result[systemIndex]
-            val originalText = systemMessage.parts
-                .filterIsInstance<UIMessagePart.Text>()
-                .joinToString("") { it.text }
-
-            val newText = buildString {
-                if (beforeContent.isNotEmpty()) {
-                    append(beforeContent)
-                    appendLine()
-                }
-                append(originalText)
-                if (afterContent.isNotEmpty()) {
-                    appendLine()
-                    append(afterContent)
-                }
-            }
-
-            result[systemIndex] = systemMessage.copy(
-                parts = listOf(UIMessagePart.Text(newText))
-            )
-        }
-    } else {
-        // 没有系统消息时，创建一个新的系统消息
-        val beforeContent = byPosition[InjectionPosition.BEFORE_SYSTEM_PROMPT]
-            ?.joinToString("\n") { it.content } ?: ""
-        val afterContent = byPosition[InjectionPosition.AFTER_SYSTEM_PROMPT]
-            ?.joinToString("\n") { it.content } ?: ""
-
-        val combinedContent = buildString {
-            if (beforeContent.isNotEmpty()) {
-                append(beforeContent)
-            }
-            if (afterContent.isNotEmpty()) {
-                if (isNotEmpty()) appendLine()
-                append(afterContent)
-            }
-        }
-
-        if (combinedContent.isNotEmpty()) {
-            result.add(0, UIMessage.system(combinedContent))
-        }
-    }
-
-    // 处理 TOP_OF_CHAT：在第一条用户消息之前插入
-    val topInjections = byPosition[InjectionPosition.TOP_OF_CHAT]
-    if (!topInjections.isNullOrEmpty()) {
-        // 重新计算索引（因为可能插入了系统消息）
-        var insertIndex = result.indexOfFirst { it.role == MessageRole.USER }
-            .takeIf { it >= 0 } ?: result.size
-        insertIndex = findSafeInsertIndex(result, insertIndex)
-        createMergedInjectionMessages(topInjections).forEach { message ->
-            result.add(insertIndex, message)
-            insertIndex++
-        }
-    }
-
-    // 处理 BOTTOM_OF_CHAT：在最后一条消息之前插入
-    val bottomInjections = byPosition[InjectionPosition.BOTTOM_OF_CHAT]
-    if (!bottomInjections.isNullOrEmpty()) {
+    // 将所有类型的注入统一转为 BOTTOM_OF_CHAT 处理，以防止破坏前缀缓存（Prompt Caching）
+    // 特别是针对 DeepSeek 等做严格前缀匹配的模型，任何头部的变化都会导致整条历史缓存失效
+    val allInjections = byPosition.values.flatten()
+    if (allInjections.isNotEmpty()) {
         var insertIndex = (result.size - 1).coerceAtLeast(0)
         insertIndex = findSafeInsertIndex(result, insertIndex)
-        createMergedInjectionMessages(bottomInjections).forEach { message ->
+        createMergedInjectionMessages(allInjections).forEach { message ->
             result.add(insertIndex, message)
             insertIndex++
-        }
-    }
-
-    // 处理 AT_DEPTH：在指定深度位置插入（从最新消息往前数）
-    // 按 injectDepth 分组，相同深度的合并，按深度从大到小处理（避免索引变化问题）
-    val atDepthInjections = byPosition[InjectionPosition.AT_DEPTH]
-    if (!atDepthInjections.isNullOrEmpty()) {
-        val byDepth = atDepthInjections.groupBy { it.injectDepth }
-        byDepth.keys.sortedDescending().forEach { depth ->
-            val injections = byDepth[depth] ?: return@forEach
-            // 计算插入位置：result.size - depth，但要确保在有效范围内
-            // depth=1 表示在最后一条消息之前，depth=2 表示在倒数第二条之前...
-            var insertIndex = (result.size - depth.coerceAtLeast(1)).coerceIn(0, result.size)
-            insertIndex = findSafeInsertIndex(result, insertIndex)
-            createMergedInjectionMessages(injections).forEach { message ->
-                result.add(insertIndex, message)
-                insertIndex++
-            }
         }
     }
 
